@@ -1,2 +1,76 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+select name, count(PlaylistId)
+from playlist_track
+join tracks
+on playlist_track.TrackId = tracks.TrackId
+group by name
+order by count(PlaylistId) desc;
+
+select tracks.name, sum(invoice_items.UnitPrice) as revenue
+from tracks
+join invoice_items
+on tracks.TrackId = invoice_items.TrackId
+group by invoice_items.InvoiceId
+order by revenue desc;
+
+select albums.AlbumId, albums.title, sum(invoice_items.UnitPrice) as revenue_track
+from tracks
+inner join invoice_items
+on tracks.TrackId = invoice_items.TrackId
+inner join albums
+on tracks.AlbumId = albums.AlbumId
+group by tracks.AlbumId
+order by revenue_track desc;
+
+select tracks.GenreId, genres.Name, sum(invoice_items.UnitPrice) as revenue
+from invoice_items
+join tracks
+on invoice_items.TrackId = tracks.TrackId
+join genres
+on tracks.GenreId = genres.GenreId
+group by tracks.GenreId
+order by revenue DESC;
+
+select invoices.BillingCountry, sum(invoice_items.UnitPrice) as revenue
+from invoice_items
+join invoices
+on invoice_items.InvoiceId = invoices.InvoiceId
+group by invoices.BillingCountry
+order by revenue desc;
+
+select invoices.BillingCountry, invoices.Total * 100 / sum(invoices.total) as total_revenue
+from invoices
+group by invoices.BillingCountry
+order by total_revenue DESC;
+
+with tracks_in_album as
+(select albums.AlbumId, albums.Title, sum(tracks.Milliseconds),
+CASE 
+when sum(tracks.Milliseconds)/ 3600000 < 1 then 'long'
+when sum(tracks.Milliseconds) / 3600000 > 1 then 'short'
+END 'album_length'
+from tracks
+join albums on tracks.AlbumId = albums.AlbumId 
+group by tracks.AlbumId)
+select tracks_in_album.Title, tracks_in_album.album_length, sum(invoice_items.UnitPrice) as revenue
+from invoice_items
+join tracks
+on invoice_items.TrackId = tracks.TrackId
+join tracks_in_album
+on tracks.AlbumId = tracks_in_album.AlbumId
+group by tracks_in_album.Title
+order by revenue desc;
+
+WITH current_year AS (
+SELECT strftime('%Y',invoices.InvoiceDate) AS CurrentYear, SUM(invoices.Total) AS YearSales 
+FROM invoices
+GROUP BY CurrentYear),
+previous_year AS (SELECT strftime('%Y',invoices.InvoiceDate) + 1 AS PreviousYear, SUM(invoices.Total) AS YearSales 
+FROM invoices
+GROUP BY PreviousYear)
+SELECT current_year.CurrentYear, current_year.YearSales, 
+((current_year.YearSales-previous_year.YearSales)/previous_year.YearSales * 100) AS PreviousSales 
+FROM current_year
+LEFT JOIN previous_year ON CAST(current_year.CurrentYear AS INTEGER) = CAST(previous_year.PreviousYear AS INTEGER);
